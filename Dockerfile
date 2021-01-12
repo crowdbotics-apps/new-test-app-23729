@@ -1,21 +1,25 @@
-FROM node:12
+FROM node:14-alpine
 
-ENV PORT 3000
+RUN apk add --no-cache --update curl bash
+WORKDIR /app
 
-# Create app directory
-RUN mkdir -p /usr/src/app
-WORKDIR /usr/src/app
+ARG NODE_ENV=development
+ARG PORT=3000
+ENV PORT=$PORT
 
-# Installing dependencies
-COPY package*.json /usr/src/app/
+COPY package* ./
+# Install the npm packages
 RUN npm install
 
-# Copying source files
-COPY . /usr/src/app
 
-# Building app
+COPY . .
+
 RUN npm run build
-EXPOSE 3000
 
-# Running the app
-CMD "npm" "run" "start"
+# Run the image as a non-root user
+RUN adduser -D myuser
+USER myuser
+
+EXPOSE $PORT
+
+CMD ["npm", "run", "start"]

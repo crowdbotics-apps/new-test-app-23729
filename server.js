@@ -1,38 +1,69 @@
-// server.js
-const { createServer } = require("http");
-const { parse } = require("url");
-const next = require("next");
+const express = require('express');
+const next = require('next');
+const path = require('path');
+const url = require('url');
 
-const dev = process.env.NODE_ENV !== "production";
-const app = next({ dev });
-const handle = app.getRequestHandler();
+const dev = process.env.NODE_ENV !== 'production';
+const port = process.env.PORT || 3000;
 
-var admin = require("firebase-admin");
-var serviceAccount = require("./brendameyapp-firebase-adminsdk-usize-0672ac8ee7.json");
+const nextApp = next({dir: '.', dev});
+const nextHandler = nextApp.getRequestHandler();
 
-app.prepare().then(() => {
+var admin = require('firebase-admin');
+var serviceAccount = require('./brendameyapp-firebase-adminsdk-usize-0672ac8ee7.json');
+nextApp.prepare().then(() => {
+  const server = express();
   if (!admin.apps.length) {
-    console.log("initialize");
+    console.log('initialize');
     admin.initializeApp({
       credential: admin.credential.cert(serviceAccount),
-      databaseURL: "https://brendameyapp.firebaseio.com",
+      databaseURL: 'https://brendameyapp.firebaseio.com',
     });
   }
-  createServer((req, res) => {
-    // Be sure to pass `true` as the second argument to `url.parse`.
-    // This tells it to parse the query portion of the URL.
-    const parsedUrl = parse(req.url, true);
-    const { pathname, query } = parsedUrl;
+  // if (!dev) {
+  //   // Enforce SSL & HSTS in production
+  //   server.use(function (req, res, next) {
+  //     var proto = req.headers['x-forwarded-proto'];
+  //     if (proto === 'https') {
+  //       res.set({
+  //         'Strict-Transport-Security': 'max-age=31557600', // one-year
+  //       });
+  //       return next();
+  //     }
+  //     res.redirect('https://' + req.headers.host + req.url);
+  //   });
+  // }
 
-    if (pathname === "/a") {
-      app.render(req, res, "/a", query);
-    } else if (pathname === "/b") {
-      app.render(req, res, "/b", query);
-    } else {
-      handle(req, res, parsedUrl);
-    }
-  }).listen(3000, (err) => {
+  // Static files
+  // https://github.com/zeit/next.js/tree/4.2.3#user-content-static-file-serving-eg-images
+  server.use(
+    '/static',
+    express.static(path.join(__dirname, 'static'), {
+      maxAge: dev ? '0' : '365d',
+    }),
+  );
+
+  // Example server-side routing
+  server.get('/a', (req, res) => {
+    return nextApp.render(req, res, '/b', req.query);
+  });
+
+  // Example server-side routing
+  server.get('/b', (req, res) => {
+    return nextApp.render(req, res, '/a', req.query);
+  });
+
+  // Default catch-all renders Next app
+  server.get('*', (req, res) => {
+    // res.set({
+    //   'Cache-Control': 'public, max-age=3600'
+    // });
+    const parsedUrl = url.parse(req.url, true);
+    nextHandler(req, res, parsedUrl);
+  });
+
+  server.listen(port, (err) => {
     if (err) throw err;
-    console.log("> Ready on http://localhost:3000");
+    console.log(`Listening on http://localhost:${port}`);
   });
 });
